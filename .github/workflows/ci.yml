@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: profacc
+          POSTGRES_PASSWORD: profacc
+          POSTGRES_DB: profacc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://profacc:profacc@localhost:5432/profacc_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      APP_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      API_INTERNAL_URL: http://localhost:4000/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npm --workspace apps/api run prisma:generate
+
+      - name: Build shared schemas
+        run: npm --workspace packages/schemas run build
+
+      - name: Build API
+        run: npm --workspace apps/api run build
+
+      - name: Build web
+        run: npm --workspace apps/web run build

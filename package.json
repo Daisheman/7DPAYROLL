@@ -1,0 +1,28 @@
+{
+  "name": "payroll-saas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Multi-tenant payroll SaaS web application",
+  "scripts": {
+    "dev": "node node_modules/concurrently/dist/bin/concurrently.js \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm --workspace apps/api run build && npm --workspace apps/api run start:local",
+    "dev:web": "npm --workspace apps/web run dev",
+    "build": "npm --workspaces run build",
+    "lint": "npm --workspaces run lint",
+    "test": "npm --workspace apps/api run test",
+    "db:migrate": "npm --workspace apps/api run prisma:migrate",
+    "db:seed": "npm --workspace apps/api run prisma:seed"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22.11.0",
+    "npm": ">=10.9.0"
+  }
+}

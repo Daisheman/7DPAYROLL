@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: profacc-api
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm install --no-audit --no-fund && npm --workspace packages/schemas run build && npm --workspace apps/api run prisma:generate && npm --workspace apps/api run build
+    startCommand: npm --workspace apps/api run start
+    healthCheckPath: /api/docs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: 4000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: APP_ORIGIN
+        sync: false
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: STORAGE_ROOT
+        value: /tmp/payroll-storage
+      - key: MFA_ISSUER
+        value: Profacc
+
+databases:
+  - name: profacc-postgres
+    plan: starter

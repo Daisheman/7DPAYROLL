@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../.. && npm --workspace packages/schemas run build && npm --workspace apps/web run build",
+  "installCommand": "cd ../.. && npm install --include=dev --workspaces --no-audit --no-fund",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
+}

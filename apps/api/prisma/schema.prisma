@@ -1,0 +1,429 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  HR_MANAGER
+  PAYROLL_MANAGER
+  PAYROLL_PROCESSOR
+  ACCOUNTANT
+  EMPLOYEE
+  AUDITOR
+  VIEWER
+}
+
+enum EmploymentType {
+  FIXED
+  HOURLY
+  DAILY
+}
+
+enum ContractType {
+  Expert
+  Citizen
+  Contract
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  CALCULATED
+  APPROVED
+  PAID
+  LOCKED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  LOCK
+  EXPORT
+  DOWNLOAD
+  IMPORT
+}
+
+model Company {
+  id               String           @id @default(uuid())
+  name             String
+  slug             String           @unique
+  taxNumber        String?
+  registration     String?
+  contract         String?
+  nssfReg          String?
+  wcfReg           String?
+  taxYear          String           @default("2025/26")
+  address          String?
+  email            String?
+  phone            String?
+  country          String           @default("TZ")
+  baseCurrency     String           @default("TZS")
+  taxCurrency      String           @default("TZS")
+  timezone         String           @default("Africa/Dar_es_Salaam")
+  workingDays      Int              @default(26)
+  stdHoursPerDay   Int              @default(9)
+  deductionsActive Boolean          @default(true)
+  logoUrl          String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  employees        Employee[]
+  users            User[]
+  payrollRuns      PayrollRun[]
+  auditLogs        AuditLog[]
+  files            FileObject[]
+  settings         CompanySetting?
+  salaryHistory    SalaryHistory[]
+  timesheets       TimesheetImport[]
+  leaveRequests    LeaveRequest[]
+  earningsCodes    EarningsCode[]
+  deductionCodes   DeductionCode[]
+
+  @@index([slug])
+}
+
+model CompanySetting {
+  id                String   @id @default(uuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrollCutoffDay  Int      @default(25)
+  statutoryCurrency String   @default("TZS")
+  enableMfa         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model User {
+  id               String    @id @default(uuid())
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId       String?   @unique
+  employee         Employee? @relation(fields: [employeeId], references: [id])
+  email            String
+  name             String?
+  passwordHash     String
+  roles            Role[]    @default([EMPLOYEE])
+  mfaSecret        String?
+  mfaEnabled       Boolean   @default(false)
+  refreshTokenHash String?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([companyId, email])
+  @@index([companyId, email])
+}
+
+model Employee {
+  id                      String          @id @default(uuid())
+  companyId               String
+  company                 Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeNumber          String
+  firstName               String
+  lastName                String
+  fullName                String?
+  title                   String?
+  department              String?
+  contractType            ContractType    @default(Citizen)
+  currency                String          @default("TZS")
+  usdSalary               Decimal?        @db.Decimal(18, 2)
+  stdHoursPerMonth        Decimal?        @db.Decimal(10, 2)
+  housingAllowance        Decimal?        @db.Decimal(18, 2)
+  transportAllowance      Decimal?        @db.Decimal(18, 2)
+  siteAllowance           Decimal?        @db.Decimal(18, 2)
+  standbyDailyRate        Decimal?        @db.Decimal(18, 2)
+  nationality             String?
+  bankName                String?
+  bankAccountNumber       String?
+  notes                   String?
+  email                   String?
+  phone                   String?
+  employmentType          EmploymentType
+  baseSalary              Decimal         @db.Decimal(18, 2)
+  hourlyRate              Decimal?        @db.Decimal(18, 2)
+  dailyRate               Decimal?        @db.Decimal(18, 2)
+  nssfNumber              String?
+  taxIdentificationNumber String?
+  startDate               DateTime
+  endDate                 DateTime?
+  isActive                Boolean         @default(true)
+  user                    User?
+  payrollItems            PayrollItem[]
+  documents               FileObject[]
+  leaveRequests           LeaveRequest[]
+  salaryHistory           SalaryHistory[]
+  filingStatus            String?
+  leaveAnnualBalance      Decimal?        @db.Decimal(8, 2)
+  leaveSickBalance        Decimal?        @db.Decimal(8, 2)
+  deductions              EmployeeDeduction[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([companyId, employeeNumber])
+  @@index([companyId, isActive])
+  @@index([companyId, employmentType, contractType])
+}
+
+model SalaryHistory {
+  id               String         @id @default(cuid())
+  companyId        String
+  employeeId       String
+  effectiveDate    DateTime
+  payType          EmploymentType
+  fixedSalaryTzs   Decimal?       @db.Decimal(18, 2)
+  hourlyRateTzs    Decimal?       @db.Decimal(18, 2)
+  stdHoursPerMonth Decimal?       @db.Decimal(10, 2)
+  currency         String         @default("TZS")
+  usdSalary        Decimal?       @db.Decimal(18, 2)
+  exchangeRate     Decimal?       @db.Decimal(18, 6)
+  housingAllowance Decimal?       @db.Decimal(18, 2)
+  transportAllow   Decimal?       @db.Decimal(18, 2)
+  siteAllowance    Decimal?       @db.Decimal(18, 2)
+  standbyDailyRate Decimal?       @db.Decimal(18, 2)
+  reason           String?
+  createdBy        String
+  createdAt        DateTime       @default(now())
+  employee         Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, effectiveDate])
+}
+
+model LeaveRequest {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       String
+  startDate  DateTime
+  endDate    DateTime
+  days       Decimal  @db.Decimal(8, 2)
+  payRate    Decimal  @default(1) @db.Decimal(5, 2)
+  notes      String?
+  status     String   @default("PENDING")
+  approvedBy String?
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId, employeeId, status])
+}
+
+model PayrollRun {
+  id                  String           @id @default(uuid())
+  companyId           String
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  periodMonth         Int
+  periodYear          Int
+  workingDays         Int              @default(26)
+  standardHoursPerDay Decimal          @default(9) @db.Decimal(8, 2)
+  exchangeRate        Decimal?         @db.Decimal(18, 6)
+  deductionsActive    Boolean          @default(true)
+  paymentDate         DateTime
+  status              PayrollRunStatus @default(DRAFT)
+  totals              Json
+  items               PayrollItem[]
+  createdById         String
+  approvedBy          String?
+  approvedAt          DateTime?
+  lockedBy            String?
+  lockedAt            DateTime?
+  timesheetImports    TimesheetImport[]
+  payCycle            String           @default("MONTHLY")
+  reversedBy          String?
+  reversedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([companyId, periodMonth, periodYear])
+  @@index([companyId, status])
+}
+
+model PayrollItem {
+  id                String               @id @default(uuid())
+  companyId         String
+  payrollRunId      String
+  payrollRun        PayrollRun           @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee             @relation(fields: [employeeId], references: [id])
+  // Hours
+  actualHours       Decimal              @default(0) @db.Decimal(10, 2)
+  otHours           Decimal              @default(0) @db.Decimal(10, 2)
+  ot20Hours         Decimal              @default(0) @db.Decimal(10, 2)
+  phHours           Decimal              @default(0) @db.Decimal(10, 2)
+  standbyDays       Decimal              @default(0) @db.Decimal(10, 2)
+  callout15Hours    Decimal              @default(0) @db.Decimal(10, 2)
+  callout20Hours    Decimal              @default(0) @db.Decimal(10, 2)
+  // Additions
+  bonus             Decimal              @default(0) @db.Decimal(18, 2)
+  otherAdditions    Decimal              @default(0) @db.Decimal(18, 2)
+  otherDeductions   Decimal              @default(0) @db.Decimal(18, 2)
+  adjustments       Decimal              @default(0) @db.Decimal(18, 2)
+  // Calculated
+  basicPay          Decimal              @default(0) @db.Decimal(18, 2)
+  otPay             Decimal              @default(0) @db.Decimal(18, 2)
+  ot20Pay           Decimal              @default(0) @db.Decimal(18, 2)
+  phPay             Decimal              @default(0) @db.Decimal(18, 2)
+  standbyPay        Decimal              @default(0) @db.Decimal(18, 2)
+  callout15Pay      Decimal              @default(0) @db.Decimal(18, 2)
+  callout20Pay      Decimal              @default(0) @db.Decimal(18, 2)
+  grossPay          Decimal              @db.Decimal(18, 2)
+  taxablePay        Decimal              @db.Decimal(18, 2)
+  paye              Decimal              @db.Decimal(18, 2)
+  nssfEmployee      Decimal              @db.Decimal(18, 2)
+  nssfEmployer      Decimal              @db.Decimal(18, 2)
+  sdl               Decimal              @db.Decimal(18, 2)
+  wcf               Decimal              @db.Decimal(18, 2)
+  levy              Decimal              @default(0) @db.Decimal(18, 2)
+  totalEmployerCost Decimal              @default(0) @db.Decimal(18, 2)
+  netPay            Decimal              @db.Decimal(18, 2)
+  ytdGross          Decimal              @db.Decimal(18, 2)
+  ytdPaye           Decimal              @db.Decimal(18, 2)
+  ytdNssf           Decimal              @default(0) @db.Decimal(18, 2)
+  ytdNet            Decimal              @default(0) @db.Decimal(18, 2)
+  details           Json
+  payslipFileId     String?
+  payslipFile       FileObject?          @relation(fields: [payslipFileId], references: [id])
+  snapshot          PayrollLineSnapshot?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([payrollRunId, employeeId])
+  @@index([companyId, employeeId])
+}
+
+model PayrollLineSnapshot {
+  id            String      @id @default(cuid())
+  payrollLineId String      @unique
+  companyId     String
+  snapshotData  Json
+  lockedAt      DateTime
+  lockedBy      String
+  payrollLine   PayrollItem @relation(fields: [payrollLineId], references: [id], onDelete: Cascade)
+}
+
+model TimesheetImport {
+  id           String     @id @default(cuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrollRunId String
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  fileName     String
+  importedBy   String
+  importedAt   DateTime   @default(now())
+  rowsMatched  Int
+  rowsSkipped  Int
+  details      Json
+
+  @@index([companyId, payrollRunId])
+}
+
+model FileObject {
+  id          String        @id @default(uuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeId  String?
+  employee    Employee?     @relation(fields: [employeeId], references: [id])
+  payrollItem PayrollItem[]
+  kind        String
+  fileName    String
+  mimeType    String
+  storageKey  String
+  sizeBytes   Int
+  checksum    String?
+  createdAt   DateTime      @default(now())
+
+  @@index([companyId, kind])
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actorId   String?
+  action    AuditAction
+  entity    String
+  entityId  String?
+  ipAddress String?
+  userAgent String?
+  before    Json?
+  after     Json?
+  createdAt DateTime    @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, entity, entityId])
+}
+
+// ── Sage Guide Ch. 4: Earnings Codes ────────────────────────────────────────
+model EarningsCode {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code         String
+  description  String
+  earningsType String   // REGULAR | OVERTIME | DOUBLE_OT | BONUS | COMMISSION | ALLOWANCE | REIMBURSEMENT | FRINGE
+  taxRule      String   @default("TAXABLE") // TAXABLE | NON_TAXABLE | SUPPLEMENTAL
+  rateMultiplier Decimal? @db.Decimal(8, 4) // e.g. 1.5 for OT
+  glAccount    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+// ── Sage Guide Ch. 5: Deduction Codes ───────────────────────────────────────
+model DeductionCode {
+  id              String              @id @default(uuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code            String
+  description     String
+  deductionType   String              // LOAN | ADVANCE | MEDICAL_AID | UNION_FEE | GARNISHMENT | PENSION_EXTRA | OTHER
+  calculationType String              @default("FIXED") // FIXED | PERCENTAGE
+  defaultAmount   Decimal?            @db.Decimal(18, 2)
+  defaultRate     Decimal?            @db.Decimal(8, 4) // e.g. 0.05 = 5%
+  glAccount       String?
+  isActive        Boolean             @default(true)
+  assignments     EmployeeDeduction[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+model EmployeeDeduction {
+  id              String        @id @default(uuid())
+  companyId       String
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  deductionCodeId String
+  deductionCode   DeductionCode @relation(fields: [deductionCodeId], references: [id])
+  amount          Decimal       @db.Decimal(18, 2)
+  originalAmount  Decimal?      @db.Decimal(18, 2)
+  balance         Decimal?      @db.Decimal(18, 2)
+  startDate       DateTime
+  endDate         DateTime?
+  notes           String?
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([companyId, employeeId])
+  @@index([companyId, isActive])
+}

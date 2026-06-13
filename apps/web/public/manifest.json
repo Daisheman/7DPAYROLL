@@ -1,0 +1,16 @@
+{
+  "name": "7D Global Projects Payroll",
+  "short_name": "7D Payroll",
+  "description": "Multi-country payroll management system",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#BE185D",
+  "orientation": "any",
+  "icons": [
+    { "src": "/7d-app-logo.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
+    { "src": "/7d-app-logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ],
+  "screenshots": [],
+  "categories": ["business", "finance", "productivity"]
+}

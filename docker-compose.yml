@@ -1,0 +1,76 @@
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-payroll}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payroll_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-payroll}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-payroll}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API (NestJS) ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    volumes:
+      - payroll-storage:/data/payroll-storage
+    # Run migrations + seed on first start, then start the server
+    command: >
+      sh -c "
+        node node_modules/prisma/build/index.js migrate deploy --schema apps/api/prisma/schema.prisma &&
+        node node_modules/tsx/dist/cli.mjs apps/api/prisma/seed.ts || true &&
+        node apps/api/dist/src/main.js
+      "
+    restart: unless-stopped
+
+  # ── Web (Next.js) ────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      # Browser-side API calls go through nginx at /api
+      NEXT_PUBLIC_API_URL: /api
+      # Server-side API calls go directly to the api container
+      API_INTERNAL_URL: http://api:4000/api
+      NODE_ENV: production
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # ── Nginx (reverse proxy — ties everything to port 80) ──────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - web
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  payroll-storage:
